@@ -1,0 +1,20 @@
+[project]
+name = "asknow-tracker"
+version = "0.1.0"
+description = "ServiceNow ticket tracker with local web UI"
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.40.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.0",
+    "alembic>=1.13.0",
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "jinja2>=3.1.3",
+    "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.7",
+]
+
+[tool.uv]
+system-certs = true

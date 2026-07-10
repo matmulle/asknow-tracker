@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.number }} — AskNow Tracker{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/" class="text-decoration-none text-secondary">&larr; All tickets</a>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="ticket-number fs-6">{{ ticket.number }}</span>
+        {% if ticket.detail_url %}
+        <a href="{{ ticket.detail_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
+            Open in ServiceNow &rarr;
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <h5 class="card-title mb-3">{{ ticket.short_description or 'No description' }}</h5>
+        <div class="row g-3">
+            {% set rf = ticket.raw_fields or {} %}
+            {% set known_fields = [
+                ("State",              ticket.state),
+                ("Current stage",      ticket.current_stage),
+                ("Stage",              ticket.stage),
+                ("Groups",             ticket.groups),
+                ("Group name",         ticket.group_name),
+                ("Application",        ticket.application),
+                ("Category",           ticket.category),
+                ("Requested by",       ticket.requested_by),
+                ("Requested for",      ticket.requested_for),
+                ("Request",            ticket.request_number),
+                ("Opened (UTC)",       ticket.opened_at),
+                ("Updated (UTC)",      ticket.updated_at or rf.get('Updated')),
+                ("Expected delivery",  ticket.expected_delivery),
+            ] %}
+            {% for label, value in known_fields %}
+            {% if value %}
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="text-muted small mb-1">{{ label }}</div>
+                <div>
+                    {% if label == "State" and value %}
+                    {% set s = value.lower() %}
+                    <span class="badge
+                        {% if 'incomplete' in s or 'cancel' in s or 'reject' in s %}bg-danger
+                        {% elif 'closed' in s or 'complete' in s or 'fulfilled' in s %}bg-success
+                        {% elif 'progress' in s or 'open' in s %}bg-primary
+                        {% elif 'hold' in s or 'wait' in s or 'pending' in s %}bg-warning text-dark
+                        {% else %}bg-secondary{% endif %}">
+                        {{ value }}
+                    </span>
+                    {% else %}
+                    {{ value }}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% if ticket.synced_at %}
+    <div class="card-footer text-muted small">
+        Last synced: {{ ticket.synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
+    </div>
+    {% endif %}
+</div>
+
+{% if ticket.raw_fields %}
+<div class="card shadow-sm">
+    <div class="card-header">
+        <button class="btn btn-link text-decoration-none p-0 fw-semibold text-dark"
+                data-bs-toggle="collapse" data-bs-target="#raw-fields">
+            All fields ({{ ticket.raw_fields|length }})
+        </button>
+    </div>
+    <div id="raw-fields" class="collapse show">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <tbody>
+                    {% for key, value in ticket.raw_fields.items()|sort %}
+                    <tr>
+                        <td class="text-muted ps-3 w-25" style="font-size: 0.85em;">{{ key }}</td>
+                        <td>{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

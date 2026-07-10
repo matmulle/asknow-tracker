@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AskNow Tracker{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script>
+        (function () {
+            const mode = localStorage.getItem('theme') || 'auto';
+            const dark = mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+        })();
+    </script>
+    <style>
+        .ticket-number { font-family: monospace; font-weight: 600; letter-spacing: 0.02em; }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container-lg d-flex align-items-center gap-3">
+        <a class="navbar-brand me-auto" href="/">AskNow Tracker</a>
+
+        <!-- Inline sync status -->
+        <div id="sync-status" class="d-flex align-items-center gap-2" style="display:none!important">
+            <div id="sync-spinner" class="spinner-border spinner-border-sm text-light opacity-75" role="status" style="display:none"></div>
+            <span id="sync-check" class="text-success fw-bold" style="display:none">✓</span>
+            <span id="sync-text" class="text-white-50 small"></span>
+            <span id="sync-debug" class="text-white-50 small fst-italic" style="display:none"></span>
+            <div id="sync-progress" class="d-flex align-items-center gap-2" style="display:none">
+                <div class="progress bg-secondary rounded-pill" style="width:72px;height:5px">
+                    <div id="sync-bar" class="progress-bar bg-success rounded-pill" style="width:0%"></div>
+                </div>
+                <span id="sync-count" class="text-white-50 small fw-semibold"></span>
+            </div>
+        </div>
+
+        <button class="btn btn-outline-light btn-sm" id="syncBtn" onclick="startSync()">Sync Tickets</button>
+
+        <!-- New ticket -->
+        <div class="dropdown">
+            <button class="btn btn-outline-light btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">+ New</button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="https://visaasknow.service-now.com/sp?id=sc_cat_item_v1&sys_id=eb08824ddbc53bc411dd58a8dc961967" target="_blank" rel="noopener">Tink Google Identity Provider</a></li>
+                <li><a class="dropdown-item" href="https://visaasknow.service-now.com/sp?id=sc_cat_item&sys_id=f56ede6fdb65470811dd58a8dc9619ab" target="_blank" rel="noopener">AD Group</a></li>
+            </ul>
+        </div>
+
+        <!-- Theme picker -->
+        <div class="dropdown">
+            <button class="btn btn-outline-light btn-sm dropdown-toggle px-2" id="themeBtn" data-bs-toggle="dropdown" aria-expanded="false"></button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><button class="dropdown-item" onclick="setTheme('light')">☀&#xFE0E;&nbsp; Light</button></li>
+                <li><button class="dropdown-item" onclick="setTheme('dark')">☾&nbsp; Dark</button></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><button class="dropdown-item" onclick="setTheme('auto')">⊙&nbsp; Sync with browser</button></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container-lg">
+    {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// --- Theme ---
+const ICONS = { light: '☀&#xFE0E;', dark: '☾', auto: '⊙' };
+
+function applyTheme(mode) {
+    const dark = mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+    const btn = document.getElementById('themeBtn');
+    if (btn) btn.innerHTML = ICONS[mode] || ICONS.auto;
+}
+function setTheme(mode) { localStorage.setItem('theme', mode); applyTheme(mode); }
+document.addEventListener('DOMContentLoaded', () => {
+    applyTheme(localStorage.getItem('theme') || 'auto');
+    const syncDone = sessionStorage.getItem('syncDone');
+    if (syncDone) {
+        sessionStorage.removeItem('syncDone');
+        const {done, total} = JSON.parse(syncDone);
+        const status   = document.getElementById('sync-status');
+        const check    = document.getElementById('sync-check');
+        const text     = document.getElementById('sync-text');
+        const progress = document.getElementById('sync-progress');
+        const bar      = document.getElementById('sync-bar');
+        const countEl  = document.getElementById('sync-count');
+        status.style.removeProperty('display');
+        document.getElementById('sync-spinner').style.display = 'none';
+        check.style.display    = '';
+        text.style.display     = '';
+        progress.style.display = '';
+        bar.style.width        = '100%';
+        text.textContent       = `${done} ticket${done !== 1 ? 's' : ''} updated`;
+        countEl.textContent    = `${done} / ${total}`;
+    }
+});
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if ((localStorage.getItem('theme') || 'auto') === 'auto') applyTheme('auto');
+});
+
+// --- Sync ---
+function startSync() {
+    const btn      = document.getElementById('syncBtn');
+    const status   = document.getElementById('sync-status');
+    const spinner  = document.getElementById('sync-spinner');
+    const check    = document.getElementById('sync-check');
+    const text     = document.getElementById('sync-text');
+    const progress = document.getElementById('sync-progress');
+    const bar      = document.getElementById('sync-bar');
+    const countEl  = document.getElementById('sync-count');
+
+    let total = 0, done = 0, syncStart = Date.now(), debugTimer = null;
+    const debug = document.getElementById('sync-debug');
+
+    function reset(keepProgress) {
+        spinner.style.display  = keepProgress ? 'none' : '';
+        check.style.display    = 'none';
+        progress.style.display = 'none';
+        text.style.display     = '';
+        bar.style.width        = '0%';
+        debug.style.display    = 'none';
+        clearTimeout(debugTimer);
+    }
+
+    btn.disabled = true;
+    status.style.removeProperty('display');
+    reset(false);
+    text.textContent = 'Opening Chrome session…';
+
+    function showDebug(line) {
+        if (!line) return;
+        debug.textContent = line;
+        debug.style.display = '';
+    }
+
+    const es = new EventSource('/sync/stream');
+
+    es.onmessage = e => {
+        const line = e.data;
+
+        if (line === '__done__') {
+            es.close();
+            reset(true);
+            check.style.display    = '';
+            text.style.display     = '';
+            progress.style.display = '';
+            bar.style.width        = '0%';
+            countEl.textContent    = '';
+            if (total === 0) {
+                text.textContent    = 'Already up to date';
+                bar.style.width     = '100%';
+            } else {
+                text.textContent = `${done} ticket${done !== 1 ? 's' : ''} updated`;
+                bar.style.width  = '100%';
+                countEl.textContent = `${done} / ${total}`;
+                sessionStorage.setItem('syncDone', JSON.stringify({done, total}));
+                setTimeout(() => location.reload(), 2000);
+            }
+            btn.disabled = false;
+            return;
+        }
+
+        if (/Parsing list page|tickets on page|tickets changed|Fetching data/.test(line)) {
+            const m = line.match(/Fetching data for (\d+)/);
+            if (m) {
+                total = parseInt(m[1]);
+                done  = 0;
+                debug.style.display = 'none';
+                if (total > 0) {
+                    text.style.display     = '';
+                    text.textContent       = `Scraping ${total} ticket${total !== 1 ? 's' : ''}…`;
+                    progress.style.display = '';
+                    bar.style.width        = '0%';
+                    countEl.textContent    = `0 / ${total}`;
+                }
+            } else {
+                text.textContent = 'Polling tickets…';
+                showDebug(line.trim());
+            }
+        } else if (/RITM\d+/.test(line)) {
+            done++;
+            bar.style.width     = `${(done / total) * 100}%`;
+            countEl.textContent = `${done} / ${total}`;
+            text.textContent    = `Scraping ${total} ticket${total !== 1 ? 's' : ''}…`;
+        } else if (/error|ERROR|expired|failed|No tickets found/i.test(line)) {
+            reset(true);
+            text.textContent = line.trim();
+            btn.disabled = false;
+        } else if (/Chrome|login|Login|Session|Waiting|Logged/.test(line)) {
+            text.textContent = 'Opening Chrome session…';
+            showDebug(line.trim());
+        }
+    };
+
+    es.onerror = () => {
+        es.close();
+        reset(true);
+        text.textContent = 'Connection lost — check terminal';
+        btn.disabled = false;
+        setTimeout(() => { status.style.setProperty('display','none','important'); }, 4000);
+    };
+}
+</script>
+</body>
+</html>

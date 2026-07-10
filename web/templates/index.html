@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Tickets — AskNow Tracker{% endblock %}
+
+{% block content %}
+<style>
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable .arrow { opacity: 0.3; font-size: 0.75em; margin-left: 3px; }
+th.sortable.asc .arrow::after  { content: '▲'; opacity: 1; }
+th.sortable.desc .arrow::after { content: '▼'; opacity: 1; }
+th.sortable:not(.asc):not(.desc) .arrow::after { content: '⇅'; }
+.trunc { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+</style>
+
+<div class="d-flex flex-column gap-2 mb-3">
+    <form method="get" action="/" id="filter-form">
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <input class="form-control" style="min-width:200px;flex:1" name="q" value="{{ q }}" placeholder="Search all fields…">
+            <button class="btn btn-primary" type="submit">Search</button>
+            {% if q or state or current_stage or group_name or application or requested_by %}
+            <a class="btn btn-outline-secondary" href="/">Clear</a>
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2 flex-wrap mt-2">
+            {% set dropdowns = [
+                ('state',         'State',          state,         states),
+                ('current_stage', 'Current stage',  current_stage, current_stages),
+                ('group_name',    'Group name',      group_name,    group_names),
+                ('application',   'Application',     application,   applications),
+                ('requested_by',  'Requested by',    requested_by,  requested_bys),
+                ('requested_for', 'Requested for',   requested_for, requested_fors),
+            ] %}
+            {% for name, label, value, options in dropdowns %}
+            <select class="form-select form-select-sm w-auto" name="{{ name }}" onchange="document.getElementById('filter-form').submit()">
+                <option value="">{{ label }}</option>
+                {% for o in options %}
+                <option value="{{ o }}" {% if o == value %}selected{% endif %}>{{ o }}</option>
+                {% endfor %}
+            </select>
+            {% endfor %}
+        </div>
+    </form>
+</div>
+
+<div class="d-flex justify-content-end mb-2">
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            Columns
+        </button>
+        <ul class="dropdown-menu p-2" style="min-width:160px">
+            {% for col_id, col_label in [
+                ('col-desc',         'Description'),
+                ('col-state',        'State'),
+                ('col-current-stage','Current stage'),
+                ('col-stage',        'Stage'),
+                ('col-groups',       'Groups'),
+                ('col-group-name',   'Group name'),
+                ('col-application',  'Application'),
+                ('col-cat',          'Category'),
+                ('col-req-by',    'Requested by'),
+                ('col-req-for',   'Requested for'),
+                ('col-opened',    'Opened (UTC)'),
+                ('col-updated',   'Updated (UTC)'),
+                ('col-delivery',  'Expected delivery'),
+            ] %}
+            <li>
+                <div class="form-check ms-1">
+                    <input class="form-check-input col-toggle" type="checkbox" id="{{ col_id }}" data-col="{{ col_id }}">
+                    <label class="form-check-label" for="{{ col_id }}">{{ col_label }}</label>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-5">
+    <div class="card-header text-muted small">
+        {{ tickets|length }} ticket{{ 's' if tickets|length != 1 else '' }}
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="tickets-table">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3 sortable" data-col="0">Number <span class="arrow"></span></th>
+                    <th class="col-desc sortable" data-col="1">Description <span class="arrow"></span></th>
+                    <th class="col-state sortable" data-col="2">State <span class="arrow"></span></th>
+                    <th class="col-current-stage sortable" data-col="3">Current stage <span class="arrow"></span></th>
+                    <th class="col-stage sortable" data-col="4">Stage <span class="arrow"></span></th>
+                    <th class="col-groups sortable" data-col="5">Groups <span class="arrow"></span></th>
+                    <th class="col-group-name sortable" data-col="6">Group name <span class="arrow"></span></th>
+                    <th class="col-application sortable" data-col="7">Application <span class="arrow"></span></th>
+                    <th class="col-cat sortable" data-col="8">Category <span class="arrow"></span></th>
+                    <th class="col-req-by sortable" data-col="9">Requested by <span class="arrow"></span></th>
+                    <th class="col-req-for sortable" data-col="10">Requested for <span class="arrow"></span></th>
+                    <th class="col-opened sortable" data-col="11">Opened (UTC) <span class="arrow"></span></th>
+                    <th class="col-updated sortable" data-col="12">Updated (UTC) <span class="arrow"></span></th>
+                    <th class="col-delivery sortable" data-col="13">Expected delivery <span class="arrow"></span></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tickets %}
+                {% set rf = t.raw_fields or {} %}
+                {% set desc = t.short_description or '' %}
+                <tr>
+                    <td class="ps-3">
+                        <a class="ticket-number text-decoration-none" href="{{ t.detail_url or '#' }}" target="_blank" rel="noopener">{{ t.number }}</a>
+                    </td>
+                    <td class="col-desc">
+                        {% if desc %}
+                        <span class="trunc" title="{{ desc }}">{{ desc }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="col-state">
+                        {% if t.state %}
+                        {% set s = t.state.lower() %}
+                        <span class="badge
+                            {% if 'incomplete' in s or 'cancel' in s or 'reject' in s %}bg-danger
+                            {% elif 'closed' in s or 'complete' in s or 'fulfilled' in s %}bg-success
+                            {% elif 'progress' in s or 'open' in s %}bg-primary
+                            {% elif 'hold' in s or 'wait' in s or 'pending' in s or 'approval' in s %}bg-warning text-dark
+                            {% else %}bg-secondary{% endif %}">
+                            {{ t.state }}
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="col-current-stage"><strong>{{ t.current_stage or '—' }}</strong></td>
+                    <td class="col-stage">{{ t.stage or '—' }}</td>
+                    <td class="col-groups">{{ t.groups or '—' }}</td>
+                    <td class="col-group-name">{{ t.group_name or '—' }}</td>
+                    <td class="col-application">{{ t.application or '—' }}</td>
+                    <td class="col-cat">{{ t.category or rf.get('cat_item') or '—' }}</td>
+                    <td class="col-req-by">{{ t.requested_by or '—' }}</td>
+                    <td class="col-req-for">{{ t.requested_for or '—' }}</td>
+                    <td class="col-opened text-nowrap">{{ t.opened_at or '—' }}</td>
+                    <td class="col-updated text-nowrap">{{ t.updated_at or rf.get('Updated') or '—' }}</td>
+                    <td class="col-delivery text-nowrap">{{ t.expected_delivery or '—' }}</td>
+                    <td class="text-nowrap"><a href="/ticket/{{ t.number }}" class="btn btn-outline-secondary btn-sm py-0">Scraped data</a></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="text-center text-muted py-5">
+                        No tickets found.<br>
+                        <small>Click <strong>Sync Tickets</strong> in the top right to import from ServiceNow.</small>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+// --- Column visibility ---
+const defaults = {
+    'col-desc': true, 'col-state': true, 'col-current-stage': true, 'col-stage': false,
+    'col-groups': true, 'col-group-name': true, 'col-application': true,
+    'col-cat': false, 'col-req-by': true, 'col-req-for': true,
+    'col-opened': true, 'col-updated': true, 'col-delivery': false,
+};
+function applyCol(colId, visible) {
+    document.querySelectorAll('.' + colId).forEach(el => el.style.display = visible ? '' : 'none');
+}
+document.querySelectorAll('.col-toggle').forEach(cb => {
+    const id = cb.dataset.col;
+    const stored = localStorage.getItem('col_' + id);
+    const visible = stored !== null ? stored === 'true' : defaults[id] !== false;
+    cb.checked = visible;
+    applyCol(id, visible);
+    cb.addEventListener('change', () => {
+        localStorage.setItem('col_' + id, cb.checked);
+        applyCol(id, cb.checked);
+    });
+});
+
+// --- Column sorting ---
+let sortCol = null, sortAsc = true;
+const table = document.getElementById('tickets-table');
+const tbody = table.querySelector('tbody');
+
+document.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+        const col = parseInt(th.dataset.col);
+        if (sortCol === col) { sortAsc = !sortAsc; }
+        else { sortCol = col; sortAsc = true; }
+
+        document.querySelectorAll('th.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+        th.classList.add(sortAsc ? 'asc' : 'desc');
+
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => {
+            const av = (a.cells[col]?.innerText || '').trim();
+            const bv = (b.cells[col]?.innerText || '').trim();
+            // Try numeric/date compare first, fall back to string
+            const an = Date.parse(av) || parseFloat(av);
+            const bn = Date.parse(bv) || parseFloat(bv);
+            const cmp = (!isNaN(an) && !isNaN(bn)) ? an - bn : av.localeCompare(bv);
+            return sortAsc ? cmp : -cmp;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,13 @@
+.env
+.env.example
+.session.json
+.chrome_data/
+debug/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+venv/
+.venv/
+*.egg-info/
+.DS_Store
