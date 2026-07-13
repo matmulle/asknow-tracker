@@ -2,7 +2,7 @@ import asyncio
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
@@ -28,17 +28,22 @@ async def get_session():
         yield session
 
 
+REQUEST_PATTERNS = {
+    "Active Directory/Windows - Group Request": "%Create New Groups%",
+    "Corporate and Commercial Applications Access Request": "%Request Access for multiple corporate%",
+}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(
     request: Request,
     session: AsyncSession = Depends(get_session),
     q: str = "",
-    state: str = "",
-    current_stage: str = "",
-    group_name: str = "",
-    application: str = "",
-    requested_by: str = "",
-    requested_for: str = "",
+    state: list[str] = Query(default=[]),
+    req_type: list[str] = Query(default=[]),
+    current_stage: list[str] = Query(default=[]),
+    requested_by: list[str] = Query(default=[]),
+    requested_for: list[str] = Query(default=[]),
 ):
     query = select(Ticket).order_by(Ticket.number.desc())
     if q:
@@ -60,17 +65,18 @@ async def index(
             )
         )
     if state:
-        query = query.where(Ticket.state == state)
+        query = query.where(Ticket.state.in_(state))
+    if req_type:
+        query = query.where(or_(*[
+            Ticket.short_description.ilike(REQUEST_PATTERNS.get(rt, f"%{rt}%"))
+            for rt in req_type
+        ]))
     if current_stage:
-        query = query.where(Ticket.current_stage.ilike(f"%{current_stage}%"))
-    if group_name:
-        query = query.where(Ticket.group_name == group_name)
-    if application:
-        query = query.where(Ticket.application == application)
+        query = query.where(Ticket.current_stage.in_(current_stage))
     if requested_by:
-        query = query.where(Ticket.requested_by.ilike(f"%{requested_by}%"))
+        query = query.where(Ticket.requested_by.in_(requested_by))
     if requested_for:
-        query = query.where(Ticket.requested_for.ilike(f"%{requested_for}%"))
+        query = query.where(Ticket.requested_for.in_(requested_for))
 
     result = await session.execute(query)
     tickets = result.scalars().all()
@@ -79,14 +85,27 @@ async def index(
         r = await session.execute(select(col).distinct().where(col.isnot(None)))
         return sorted(v for (v,) in r if v)
 
+    def to_request_label(desc):
+        if not desc:
+            return desc
+        if "Create New Groups" in desc:
+            return "Active Directory/Windows - Group Request"
+        if "Request Access for multiple corporate" in desc:
+            return "Corporate and Commercial Applications Access Request"
+        return desc
+
+    descs_result = await session.execute(
+        select(Ticket.short_description).distinct().where(Ticket.short_description.isnot(None))
+    )
+    request_options = sorted({to_request_label(d) for (d,) in descs_result if d})
+
     return templates.TemplateResponse(
         request, "index.html",
         {
             "tickets": tickets, "q": q,
             "state": state, "states": await distinct(Ticket.state),
+            "req_type": req_type, "request_options": request_options,
             "current_stage": current_stage, "current_stages": await distinct(Ticket.current_stage),
-            "group_name": group_name, "group_names": await distinct(Ticket.group_name),
-            "application": application, "applications": await distinct(Ticket.application),
             "requested_by": requested_by, "requested_bys": await distinct(Ticket.requested_by),
             "requested_for": requested_for, "requested_fors": await distinct(Ticket.requested_for),
         },

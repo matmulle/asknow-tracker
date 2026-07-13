@@ -41,8 +41,8 @@
         <div class="dropdown">
             <button class="btn btn-outline-light btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">+ New</button>
             <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" href="https://visaasknow.service-now.com/sp?id=sc_cat_item_v1&sys_id=eb08824ddbc53bc411dd58a8dc961967" target="_blank" rel="noopener">Tink Google Identity Provider</a></li>
-                <li><a class="dropdown-item" href="https://visaasknow.service-now.com/sp?id=sc_cat_item&sys_id=f56ede6fdb65470811dd58a8dc9619ab" target="_blank" rel="noopener">AD Group</a></li>
+                <li><a class="dropdown-item" href="https://visaasknow.service-now.com/sp?id=sc_cat_item_v1&sys_id=eb08824ddbc53bc411dd58a8dc961967" target="_blank" rel="noopener">Corporate and Commercial Applications Access Request</a></li>
+                <li><a class="dropdown-item" href="https://visaasknow.service-now.com/sp?id=sc_cat_item&sys_id=f56ede6fdb65470811dd58a8dc9619ab" target="_blank" rel="noopener">Active Directory/Windows - Group Request</a></li>
             </ul>
         </div>
 
@@ -80,7 +80,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const syncDone = sessionStorage.getItem('syncDone');
     if (syncDone) {
         sessionStorage.removeItem('syncDone');
-        const {done, total} = JSON.parse(syncDone);
+        const {done, total, updated} = JSON.parse(syncDone);
+        if (updated && updated.length) {
+            const set = new Set(updated);
+            let firstRow = null;
+            document.querySelectorAll('#tickets-table tbody tr').forEach(row => {
+                const num = row.querySelector('.ticket-number');
+                if (num && set.has(num.textContent.trim())) {
+                    row.classList.add('table-warning');
+                    if (!firstRow) firstRow = row;
+                }
+            });
+            if (firstRow) firstRow.scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
         const status   = document.getElementById('sync-status');
         const check    = document.getElementById('sync-check');
         const text     = document.getElementById('sync-text');
@@ -112,7 +124,7 @@ function startSync() {
     const bar      = document.getElementById('sync-bar');
     const countEl  = document.getElementById('sync-count');
 
-    let total = 0, done = 0, syncStart = Date.now(), debugTimer = null;
+    let total = 0, done = 0, syncStart = Date.now(), debugTimer = null, updatedTickets = [];
     const debug = document.getElementById('sync-debug');
 
     function reset(keepProgress) {
@@ -156,7 +168,7 @@ function startSync() {
                 text.textContent = `${done} ticket${done !== 1 ? 's' : ''} updated`;
                 bar.style.width  = '100%';
                 countEl.textContent = `${done} / ${total}`;
-                sessionStorage.setItem('syncDone', JSON.stringify({done, total}));
+                sessionStorage.setItem('syncDone', JSON.stringify({done, total, updated: updatedTickets}));
                 setTimeout(() => location.reload(), 2000);
             }
             btn.disabled = false;
@@ -181,6 +193,8 @@ function startSync() {
                 showDebug(line.trim());
             }
         } else if (/RITM\d+/.test(line)) {
+            const m = line.match(/RITM\d+/);
+            if (m) updatedTickets.push(m[0]);
             done++;
             bar.style.width     = `${(done / total) * 100}%`;
             countEl.textContent = `${done} / ${total}`;

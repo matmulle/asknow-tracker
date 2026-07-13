@@ -9,6 +9,8 @@ th.sortable.asc .arrow::after  { content: '▲'; opacity: 1; }
 th.sortable.desc .arrow::after { content: '▼'; opacity: 1; }
 th.sortable:not(.asc):not(.desc) .arrow::after { content: '⇅'; }
 .trunc { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.filter-dropdown .dropdown-menu { min-width: 210px; max-height: 300px; overflow-y: auto; }
+.filter-dropdown .form-check-label { cursor: pointer; }
 </style>
 
 <div class="d-flex flex-column gap-2 mb-3">
@@ -16,26 +18,38 @@ th.sortable:not(.asc):not(.desc) .arrow::after { content: '⇅'; }
         <div class="d-flex gap-2 flex-wrap align-items-center">
             <input class="form-control" style="min-width:200px;flex:1" name="q" value="{{ q }}" placeholder="Search all fields…">
             <button class="btn btn-primary" type="submit">Search</button>
-            {% if q or state or current_stage or group_name or application or requested_by %}
+            {% if q or state or req_type or current_stage or requested_by or requested_for %}
             <a class="btn btn-outline-secondary" href="/">Clear</a>
             {% endif %}
         </div>
         <div class="d-flex gap-2 flex-wrap mt-2">
             {% set dropdowns = [
                 ('state',         'State',          state,         states),
+                ('req_type',      'Request',        req_type,      request_options),
                 ('current_stage', 'Current stage',  current_stage, current_stages),
-                ('group_name',    'Group name',      group_name,    group_names),
-                ('application',   'Application',     application,   applications),
-                ('requested_by',  'Requested by',    requested_by,  requested_bys),
-                ('requested_for', 'Requested for',   requested_for, requested_fors),
+                ('requested_by',  'Requested by',   requested_by,  requested_bys),
+                ('requested_for', 'Requested for',  requested_for, requested_fors),
             ] %}
-            {% for name, label, value, options in dropdowns %}
-            <select class="form-select form-select-sm w-auto" name="{{ name }}" onchange="document.getElementById('filter-form').submit()">
-                <option value="">{{ label }}</option>
-                {% for o in options %}
-                <option value="{{ o }}" {% if o == value %}selected{% endif %}>{{ o }}</option>
-                {% endfor %}
-            </select>
+            {% for fname, label, selected, options in dropdowns %}
+            <div class="dropdown filter-dropdown">
+                <button class="btn btn-sm dropdown-toggle {{ 'btn-primary' if selected else 'btn-outline-secondary' }}"
+                        type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    {{ label }}{% if selected %} · {{ selected|length }}{% endif %}
+                </button>
+                <div class="dropdown-menu p-2">
+                    <div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom">
+                        <span class="text-muted small">{{ label }}</span>
+                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none select-all-btn">Select all</button>
+                    </div>
+                    {% for o in options %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="{{ fname }}" value="{{ o }}"
+                               id="{{ fname }}-{{ loop.index }}" {% if o in selected %}checked{% endif %}>
+                        <label class="form-check-label small" for="{{ fname }}-{{ loop.index }}">{{ o }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
             {% endfor %}
         </div>
     </form>
@@ -48,19 +62,19 @@ th.sortable:not(.asc):not(.desc) .arrow::after { content: '⇅'; }
         </button>
         <ul class="dropdown-menu p-2" style="min-width:160px">
             {% for col_id, col_label in [
-                ('col-desc',         'Description'),
+                ('col-request',      'Request'),
                 ('col-state',        'State'),
                 ('col-current-stage','Current stage'),
                 ('col-stage',        'Stage'),
-                ('col-groups',       'Groups'),
-                ('col-group-name',   'Group name'),
+                ('col-group-name',   'Groups / Group name / Role(s)'),
                 ('col-application',  'Application'),
                 ('col-cat',          'Category'),
-                ('col-req-by',    'Requested by'),
-                ('col-req-for',   'Requested for'),
-                ('col-opened',    'Opened (UTC)'),
-                ('col-updated',   'Updated (UTC)'),
-                ('col-delivery',  'Expected delivery'),
+                ('col-req-by',       'Requested by'),
+                ('col-req-for',      'Requested for'),
+                ('col-opened',       'Opened (UTC)'),
+                ('col-updated',      'Updated (UTC)'),
+                ('col-delivery',     'Expected delivery'),
+                ('col-desc',         'Description'),
             ] %}
             <li>
                 <div class="form-check ms-1">
@@ -82,19 +96,19 @@ th.sortable:not(.asc):not(.desc) .arrow::after { content: '⇅'; }
             <thead class="table-light">
                 <tr>
                     <th class="ps-3 sortable" data-col="0">Number <span class="arrow"></span></th>
-                    <th class="col-desc sortable" data-col="1">Description <span class="arrow"></span></th>
-                    <th class="col-state sortable" data-col="2">State <span class="arrow"></span></th>
+                    <th class="col-state sortable" data-col="1">State <span class="arrow"></span></th>
+                    <th class="col-request sortable" data-col="2">Request <span class="arrow"></span></th>
                     <th class="col-current-stage sortable" data-col="3">Current stage <span class="arrow"></span></th>
                     <th class="col-stage sortable" data-col="4">Stage <span class="arrow"></span></th>
-                    <th class="col-groups sortable" data-col="5">Groups <span class="arrow"></span></th>
-                    <th class="col-group-name sortable" data-col="6">Group name <span class="arrow"></span></th>
-                    <th class="col-application sortable" data-col="7">Application <span class="arrow"></span></th>
-                    <th class="col-cat sortable" data-col="8">Category <span class="arrow"></span></th>
-                    <th class="col-req-by sortable" data-col="9">Requested by <span class="arrow"></span></th>
-                    <th class="col-req-for sortable" data-col="10">Requested for <span class="arrow"></span></th>
-                    <th class="col-opened sortable" data-col="11">Opened (UTC) <span class="arrow"></span></th>
-                    <th class="col-updated sortable" data-col="12">Updated (UTC) <span class="arrow"></span></th>
-                    <th class="col-delivery sortable" data-col="13">Expected delivery <span class="arrow"></span></th>
+                    <th class="col-group-name sortable" data-col="5">Groups / Group name / Role(s) <span class="arrow"></span></th>
+                    <th class="col-application sortable" data-col="6">Application <span class="arrow"></span></th>
+                    <th class="col-cat sortable" data-col="7">Category <span class="arrow"></span></th>
+                    <th class="col-req-by sortable" data-col="8">Requested by <span class="arrow"></span></th>
+                    <th class="col-req-for sortable" data-col="9">Requested for <span class="arrow"></span></th>
+                    <th class="col-opened sortable" data-col="10">Opened (UTC) <span class="arrow"></span></th>
+                    <th class="col-updated sortable" data-col="11">Updated (UTC) <span class="arrow"></span></th>
+                    <th class="col-delivery sortable" data-col="12">Expected delivery <span class="arrow"></span></th>
+                    <th class="col-desc sortable" data-col="13">Description <span class="arrow"></span></th>
                     <th></th>
                 </tr>
             </thead>
@@ -102,14 +116,16 @@ th.sortable:not(.asc):not(.desc) .arrow::after { content: '⇅'; }
                 {% for t in tickets %}
                 {% set rf = t.raw_fields or {} %}
                 {% set desc = t.short_description or '' %}
+                {% if 'Create New Groups' in desc %}
+                  {% set request_label = 'Active Directory/Windows - Group Request' %}
+                {% elif 'Request Access for multiple corporate' in desc %}
+                  {% set request_label = 'Corporate and Commercial Applications Access Request' %}
+                {% else %}
+                  {% set request_label = desc %}
+                {% endif %}
                 <tr>
                     <td class="ps-3">
                         <a class="ticket-number text-decoration-none" href="{{ t.detail_url or '#' }}" target="_blank" rel="noopener">{{ t.number }}</a>
-                    </td>
-                    <td class="col-desc">
-                        {% if desc %}
-                        <span class="trunc" title="{{ desc }}">{{ desc }}</span>
-                        {% else %}—{% endif %}
                     </td>
                     <td class="col-state">
                         {% if t.state %}
@@ -124,17 +140,24 @@ th.sortable:not(.asc):not(.desc) .arrow::after { content: '⇅'; }
                         </span>
                         {% else %}—{% endif %}
                     </td>
+                    <td class="col-request">
+                        <span class="trunc" title="{{ request_label }}">{{ request_label or '—' }}</span>
+                    </td>
                     <td class="col-current-stage"><strong>{{ t.current_stage or '—' }}</strong></td>
                     <td class="col-stage">{{ t.stage or '—' }}</td>
-                    <td class="col-groups">{{ t.groups or '—' }}</td>
-                    <td class="col-group-name">{{ t.group_name or '—' }}</td>
-                    <td class="col-application">{{ t.application or '—' }}</td>
+                    <td class="col-group-name">{{ t.group_name or t.groups or t.roles or '—' }}</td>
+                    <td class="col-application">{{ t.application or (rf.get('Select Application') if 'Request Access for multiple corporate' in desc else None) or '—' }}</td>
                     <td class="col-cat">{{ t.category or rf.get('cat_item') or '—' }}</td>
                     <td class="col-req-by">{{ t.requested_by or '—' }}</td>
                     <td class="col-req-for">{{ t.requested_for or '—' }}</td>
                     <td class="col-opened text-nowrap">{{ t.opened_at or '—' }}</td>
                     <td class="col-updated text-nowrap">{{ t.updated_at or rf.get('Updated') or '—' }}</td>
                     <td class="col-delivery text-nowrap">{{ t.expected_delivery or '—' }}</td>
+                    <td class="col-desc">
+                        {% if desc %}
+                        <span class="trunc" title="{{ desc }}">{{ desc }}</span>
+                        {% else %}—{% endif %}
+                    </td>
                     <td class="text-nowrap"><a href="/ticket/{{ t.number }}" class="btn btn-outline-secondary btn-sm py-0">Scraped data</a></td>
                 </tr>
                 {% else %}
@@ -151,10 +174,38 @@ th.sortable:not(.asc):not(.desc) .arrow::after { content: '⇅'; }
 </div>
 
 <script>
+// --- Filter dropdowns: submit on close, select-all toggle ---
+const filterForm = document.getElementById('filter-form');
+
+document.querySelectorAll('.filter-dropdown').forEach(dd => {
+    // Auto-submit when the dropdown closes
+    dd.addEventListener('hidden.bs.dropdown', () => filterForm.submit());
+
+    // Select all / Deselect all
+    const btn = dd.querySelector('.select-all-btn');
+    const getCbs = () => dd.querySelectorAll('input[type=checkbox]');
+
+    function syncBtn() {
+        const cbs = getCbs();
+        const allChecked = cbs.length > 0 && Array.from(cbs).every(cb => cb.checked);
+        btn.textContent = allChecked ? 'Deselect all' : 'Select all';
+    }
+    syncBtn();
+
+    btn.addEventListener('click', () => {
+        const cbs = getCbs();
+        const allChecked = Array.from(cbs).every(cb => cb.checked);
+        cbs.forEach(cb => cb.checked = !allChecked);
+        syncBtn();
+    });
+
+    getCbs().forEach(cb => cb.addEventListener('change', syncBtn));
+});
+
 // --- Column visibility ---
 const defaults = {
-    'col-desc': true, 'col-state': true, 'col-current-stage': true, 'col-stage': false,
-    'col-groups': true, 'col-group-name': true, 'col-application': true,
+    'col-request': true, 'col-desc': false, 'col-state': true, 'col-current-stage': true, 'col-stage': false,
+    'col-group-name': true, 'col-application': true,
     'col-cat': false, 'col-req-by': true, 'col-req-for': true,
     'col-opened': true, 'col-updated': true, 'col-delivery': false,
 };

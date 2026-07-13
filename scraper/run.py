@@ -455,6 +455,7 @@ async def upsert_ticket(session, number: str, href: str, fields: dict) -> None:
         "requested_for":     pop("Requested for"),
         "groups":            pop("Groups"),
         "group_name":        pop("Group Name"),
+        "roles":             pop("Role(s)"),
         "application":       pop("Related Application / Component Service"),
         "category":          pop("category"),
         "request_number":    pop("request_number", "request"),
@@ -556,8 +557,12 @@ async def main() -> None:
                 db_val = db_updated.get(t["number"], "")
                 list_val = t.get("list_updated_at", "")
                 # Compare first 16 chars (YYYY-MM-DD HH:MM) to ignore minor format diffs
-                # Skip if timestamps match, OR if list has no u_status timestamp (can't compare)
-                if not list_val or (db_val and db_val[:16] == list_val[:16]):
+                # Only skip if both timestamps are present and match
+                if list_val and db_val and db_val[:16] == list_val[:16]:
+                    skipped += 1
+                elif not list_val and t["number"] in db_updated:
+                    # u_status is empty for this ticket (e.g. closed/cancelled) — can't compare;
+                    # assume unchanged since it's already in the DB. Use --full-sync to force.
                     skipped += 1
                 else:
                     changed.append(t)

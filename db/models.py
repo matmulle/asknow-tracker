@@ -25,6 +25,7 @@ class Ticket(Base):
     requested_for: Mapped[Optional[str]] = mapped_column(String(200))
     groups: Mapped[Optional[str]] = mapped_column(Text)
     group_name: Mapped[Optional[str]] = mapped_column(Text)
+    roles: Mapped[Optional[str]] = mapped_column(Text)
     application: Mapped[Optional[str]] = mapped_column(Text)
     expected_delivery: Mapped[Optional[str]] = mapped_column(String(100))
     category: Mapped[Optional[str]] = mapped_column(String(200))
