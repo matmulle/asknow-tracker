@@ -30,7 +30,9 @@ SNOW_ID=DYNAMICyour_sys_id
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/asknow
 ```
 
-To find your `SNOW_ID`: open the AskNow ticket list in a browser, look at the URL — it contains `request.requested_forDYNAMIC<your_id>`. Copy the full value starting with `DYNAMIC`.
+To find your `SNOW_ID`: open https://visaasknow.service-now.com/sp, then scroll down to section "My Activity" and click on the "n Requests" (for some `n`) box. A "View All Requests" link should now appear in this section (the page may re-load). Click on it and your `SNOW_ID` should be the portion between `filter=request.requested_for` and `%`, which looks like `DYNAMICxxxxxxxxxxxxxx`.
+
+<img src="./assets/my_activity.png" width="50%">
 
 **3. Run database migrations**
 
